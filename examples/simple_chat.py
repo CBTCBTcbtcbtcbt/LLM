@@ -2,20 +2,20 @@
 import sys
 sys.path.append('..')
 
-from llm_client import create_client
+from llm_client import LLMClient
 from conversation import Conversation
 from chat import load_config
 
 # Load API config and create client
-_config = load_config()
-_api = _config.get('api', {})
-client = create_client(
-    provider=_api.get('provider', 'openai'),
-    api_key=_api.get('api_key', ''),
-    model=_api.get('model', 'gpt-3.5-turbo'),
-    base_url=_api.get('base_url', 'https://api.openai.com/v1'),
-    temperature=_api.get('temperature', 0.7),
-    max_tokens=_api.get('max_tokens', 2000)
+config = load_config('../config.yaml')
+api = config['api']
+
+client = LLMClient(
+    api_key=api['api_key'],
+    base_url=api['base_url'],
+    model=api['model'],
+    temperature=api.get('temperature', 0.7),
+    max_tokens=api.get('max_tokens', 2000)
 )
 
 # Create conversation

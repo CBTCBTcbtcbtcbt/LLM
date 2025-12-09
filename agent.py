@@ -1,31 +1,51 @@
 """Agent module for creating AI agents with specific roles."""
-from typing import Optional, Dict, Any
+from typing import Optional
 from conversation import Conversation
 from llm_client import LLMClient
 
 
 class Agent:
-    """Base class for AI agents with specific roles and behaviors."""
+    """AI agent with specific role and personality."""
     
-    def __init__(self, name: str, client: LLMClient, role: str = "", 
-                 personality: str = ""):
-        self.name = name
+    def __init__(
+        self,
+        client: LLMClient,
+        name: str = "Agent",
+        role: str = "",
+        personality: str = "",
+        background: str = "",
+    ):
         self.client = client
+        self.name = name
         self.role = role
         self.personality = personality
-        self.conversation = Conversation(
-            client, 
-            self._build_system_prompt()
-        )
+        self.background = background
+        self.conversation = Conversation(client, self._build_system_prompt())
     
     def _build_system_prompt(self) -> str:
         """Build system prompt from role and personality."""
-        prompt_parts = []
+        parts = []
+        parts.append( """
+        # Role-Playing Instructions
+        **【CORE RULES: STRICT PROHIBITION AGAINST BREAKING CHARACTER】**
+        1.  **Identity Constraint:** Throughout the entire conversation, you are **ABSOLUTELY FORBIDDEN** to reveal or imply that you are an Artificial Intelligence, a Large Language Model, a program, or any non-human entity. You are 【Character's Name/Identity】.
+        2.  **Response Requirement:** All your answers must be **STRICTLY** given from the 'I' first-person perspective of your character. The tone and content must align with your personality and the established scenario.
+        3.  **Interaction Style:** Focus on 【E.g., Dialogue Exchange / Situational Description】. Do not provide any systematic summaries or analyses that break character.
+        """)
         if self.role:
-            prompt_parts.append(f"Role: {self.role}")
+            parts.append(f"""
+                        **【ROLE DEFINITION】**
+                        You are: {self.role}
+                        """)
         if self.personality:
-            prompt_parts.append(f"Personality: {self.personality}")
-        return "\n".join(prompt_parts) if prompt_parts else ""
+            parts.append(f"""**Personality Traits:**
+                          {self.personality}
+                        """)
+        if self.background:
+            parts.append(f"""**【BACKGROUND INFORMATION·】**
+                          {self.background}
+                        """)
+        return "\n".join(parts) if parts else ""
     
     def respond(self, message: str, **kwargs) -> str:
         """Generate response to a message."""
@@ -42,24 +62,3 @@ class Agent:
     def get_history(self):
         """Get agent's conversation history."""
         return self.conversation.get_history()
-
-
-class WerewolfPlayer(Agent):
-    """Specialized agent for Werewolf game."""
-    
-    def __init__(self, name: str, client: LLMClient, character: str):
-        self.character = character
-        role = f"You are participating in the Werewolf game as {character}. Please gather information and make decisions based on your role."
-        personality = self._get_character_personality(character)
-        super().__init__(name, client, role, personality)
-    
-    def _get_character_personality(self, character: str) -> str:
-        """Get personality traits based on character type."""
-        personalities = {
-            "werewolf": "You are deceptive and try to blend in with villagers.",
-            "villager": "You are honest and try to find the werewolves.",
-            "seer": "You can see one player's identity each night. Use this wisely.",
-            "doctor": "You can protect one player each night from werewolf attacks.",
-            "hunter": "If you die, you can take one player with you."
-        }
-        return personalities.get(character.lower(), "")

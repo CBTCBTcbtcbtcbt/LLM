@@ -1,6 +1,6 @@
 """Main chat interface for interacting with LLM."""
 import yaml
-from llm_client import create_client
+from llm_client import LLMClient
 from conversation import Conversation
 
 
@@ -15,11 +15,10 @@ def main():
     config = load_config()
     api_config = config['api']
     
-    client = create_client(
-        provider=api_config['provider'],
+    client = LLMClient(
         api_key=api_config['api_key'],
+        base_url=api_config['base_url'],
         model=api_config['model'],
-        base_url=api_config.get('base_url', ''),
         temperature=api_config.get('temperature', 0.7),
         max_tokens=api_config.get('max_tokens', 2000)
     )
