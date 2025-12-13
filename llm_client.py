@@ -31,6 +31,7 @@ class LLMClient:
             max_tokens=kwargs.get('max_tokens', self.max_tokens),
             **{k: v for k, v in self.extra_params.items() if k not in kwargs}
         )
+        print(response)
         return response.choices[0].message.content or ""
     
     def stream_chat(self, messages: Iterable[ChatCompletionMessageParam], **kwargs) -> Iterator[str]:

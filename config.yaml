@@ -14,9 +14,9 @@ api:
   provider: "openai"  # openai, anthropic, azure, etc.
   base_url: "https://api.vectorengine.ai/v1"
   api_key: "sk-R30Tp6MPi7eRH69iL5a5bbyUVkSqQXWh6857cSq3So24ZqYF"
-  model: "gpt-5.1"
+  model: "gpt-5"
   temperature: 0.7
-  max_tokens: 2000
+  max_tokens: 5000
 
 
 # Alternative providers (uncomment to use)
