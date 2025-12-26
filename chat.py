@@ -1,7 +1,12 @@
 """Main chat interface for interacting with LLM."""
 import yaml
-from llm_client import LLMClient
-from conversation import Conversation
+
+try:
+    from .llm_client import LLMClient
+    from .conversation import Conversation
+except ImportError:
+    from llm_client import LLMClient
+    from conversation import Conversation
 
 
 def load_config(config_path: str = "config.yaml") -> dict:
