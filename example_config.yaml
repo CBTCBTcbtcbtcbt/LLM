@@ -1,0 +1,31 @@
+# LLM API Configuration
+
+# api:
+#   # provider: "openai"  # openai, anthropic, azure, etc.
+#   base_url: "https://api.gemai.cc/v1"
+#   api_key: 
+#   model: "gpt-5.1-codex-mini"
+#   temperature: 0.7
+#   max_tokens: 2000
+
+
+
+api:
+  provider: "openai"  # openai, anthropic, azure, etc.
+  base_url: "https://api.vectorengine.ai/v1"
+  api_key: "api_key"
+  model: "gemini-3-flash-preview"
+  temperature: 0.7
+  max_tokens: 5000
+
+
+# Alternative providers (uncomment to use)
+# anthropic:
+#   api_key: "your-anthropic-key"
+#   model: "claude-3-sonnet-20240229"
+#   base_url: "https://api.anthropic.com"
+
+# azure:
+#   api_key: "your-azure-key"
+#   endpoint: "https://your-resource.openai.azure.com"
+#   deployment_name: "your-deployment"
