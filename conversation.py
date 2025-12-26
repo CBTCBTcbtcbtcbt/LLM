@@ -1,6 +1,10 @@
 """Conversation management module."""
 from typing import List, Dict, Optional
-from llm_client import LLMClient
+
+try:
+    from .llm_client import LLMClient
+except ImportError:
+    from llm_client import LLMClient
 
 
 class Conversation:

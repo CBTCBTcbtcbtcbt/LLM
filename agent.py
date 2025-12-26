@@ -1,7 +1,7 @@
 """Agent module for creating AI agents with specific roles."""
 from typing import Optional
-from conversation import Conversation
-from llm_client import LLMClient
+from .conversation import Conversation
+from .llm_client import LLMClient
 
 
 class Agent:
