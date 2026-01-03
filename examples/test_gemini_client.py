@@ -5,7 +5,7 @@ import yaml
 # Add parent directory to path to import llm_client_gemini
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from llm_client_gemini import LLMClientGemini
+from llm_client import LLMClient
 
 def load_config(config_path="config.yaml"):
     try:
@@ -39,15 +39,16 @@ def main():
         # Proceeding might fail
     
     try:
-        client = LLMClientGemini(
+        client = LLMClient(
             api_key=api_key,
             base_url=base_url,
-            model=model
+            model=model,
+            provider="google"
         )
         
         messages = [
             {"role": "system", "content": "You are a helpful assistant. Please answer in a concise manner."},
-            {"role": "user", "content": "Hello! Who are you?"}
+            {"role": "user", "content": "请问你是谁？"},
         ]
         
         print("\nSending request (non-streaming)...")

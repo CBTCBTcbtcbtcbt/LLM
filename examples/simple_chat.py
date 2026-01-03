@@ -14,6 +14,7 @@ client = LLMClient(
     api_key=api['api_key'],
     base_url=api['base_url'],
     model=api['model'],
+    provider=api.get('provider', 'openai'),
     temperature=api.get('temperature', 0.7),
     max_tokens=api.get('max_tokens', 2000)
 )

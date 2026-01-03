@@ -12,7 +12,7 @@
 
 api:
   provider: "openai"  # openai, anthropic, azure, etc.
-  base_url: "https://api.vectorengine.ai/v1"
+  base_url: "https://api.vectorengine.ai"
   api_key: "api_key"
   model: "gemini-3-flash-preview"
   temperature: 0.7
