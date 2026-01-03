@@ -95,11 +95,10 @@ class LLMClientGemini:
             **{k: v for k, v in self.extra_params.items() if k not in kwargs}
         )
         
-        stream = self.client.models.generate_content(
+        stream = self.client.models.generate_content_stream(
             model=self.model,
             contents=contents,
-            config=config,
-            stream=True
+            config=config
         )
         
         for chunk in stream:
