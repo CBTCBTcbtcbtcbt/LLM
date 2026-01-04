@@ -144,11 +144,17 @@ class _GeminiClient:
     def chat(self, messages: Iterable[ChatCompletionMessageParam], **kwargs) -> str:
         """Send chat request and return response."""
         system_instruction, contents = self._convert_messages(messages)
+
+        # Extract structured output parameters
+        response_mime_type = kwargs.pop('response_mime_type', None)
+        response_schema = kwargs.pop('response_schema', None)
         
         config = types.GenerateContentConfig(
             temperature=kwargs.get('temperature', self.temperature),
             max_output_tokens=kwargs.get('max_tokens', self.max_tokens),
             system_instruction=system_instruction,
+            response_mime_type=response_mime_type,
+            response_schema=response_schema,
             **{k: v for k, v in self.extra_params.items() if k not in kwargs}
         )
         
@@ -163,10 +169,16 @@ class _GeminiClient:
         """Stream chat responses."""
         system_instruction, contents = self._convert_messages(messages)
         
+        # Extract structured output parameters
+        response_mime_type = kwargs.pop('response_mime_type', None)
+        response_schema = kwargs.pop('response_schema', None)
+
         config = types.GenerateContentConfig(
             temperature=kwargs.get('temperature', self.temperature),
             max_output_tokens=kwargs.get('max_tokens', self.max_tokens),
             system_instruction=system_instruction,
+            response_mime_type=response_mime_type,
+            response_schema=response_schema,
             **{k: v for k, v in self.extra_params.items() if k not in kwargs}
         )
         

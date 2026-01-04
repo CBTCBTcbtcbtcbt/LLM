@@ -14,7 +14,7 @@ def load_config(config_path="config.yaml"):
     except FileNotFoundError:
         print(f"Config file {config_path} not found. Using defaults.")
         return None
-
+ 
 def main():
     # Try to load config
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.yaml")
