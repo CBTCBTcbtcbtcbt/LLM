@@ -1,299 +1,204 @@
-# LLM Client Library
+# LLM 框架技术文档
 
-一个简洁通用的LLM客户端库，支持所有OpenAI兼容的API接口。
+本文档详细介绍了该仓库根目录下核心 Python 模块的使用方法、类定义、参数说明及输入格式。
 
-## 特性
+## 目录
 
-- 🚀 基于OpenAI官方SDK，稳定可靠
-- 🔌 支持所有OpenAI兼容的API（OpenAI、Azure、国内各大模型等）
-- 💬 支持流式和非流式对话
-- 🤖 内置Agent系统，可创建具有特定角色的AI助手
-- 📝 自动管理对话历史
-- ⚙️ 灵活的配置系统
+1. [LLMClient (llm_client.py)](#1-llmclient-llm_clientpy)
+2. [Conversation (conversation.py)](#2-conversation-conversationpy)
+3. [Agent (agent.py)](#3-agent-agentpy)
+4. [MultiAgentSystem (multi_agent.py)](#4-multiagentsystem-multi_agentpy)
+5. [命令行聊天工具 (chat.py)](#5-命令行聊天工具-chatpy)
 
-## 安装
+---
 
-```bash
-pip install -r requirements.txt
-```
+## 1. LLMClient (`llm_client.py`)
 
-## 快速开始
+`LLMClient` 是一个通用的 LLM 客户端，支持 OpenAI 和 Google Gemini API。它对外提供统一的接口，屏蔽了不同供应商的底层差异。
 
-### 1. 配置API
-
-编辑 `config.yaml` 文件：
-
-```yaml
-api:
-  api_key: "your-api-key"
-  base_url: "https://api.openai.com/v1"  # 或其他兼容的API地址
-  model: "gpt-3.5-turbo"
-  temperature: 0.7
-  max_tokens: 2000
-```
-
-### 2. 基础对话
+### 类定义
 
 ```python
-from llm_client import LLMClient
-from conversation import Conversation
-
-# 创建客户端
-client = LLMClient(
-    api_key="your-api-key",
-    base_url="https://api.openai.com/v1",
-    model="gpt-3.5-turbo"
-)
-
-# 创建对话
-conv = Conversation(client)
-
-# 发送消息
-response = conv.send("Hello!")
-print(response)
-```
-
-### 3. 流式对话
-
-```python
-# 流式输出
-for chunk in conv.stream_send("Tell me a story"):
-    print(chunk, end="", flush=True)
-```
-
-### 4. 创建AI Agent
-
-```python
-from agent import Agent
-
-# 创建具有特定角色的Agent
-teacher = Agent(
-    client=client,
-    name="Teacher",
-    role="You are a patient teacher.",
-    personality="Friendly and encouraging"
-)
-
-response = teacher.respond("Explain quantum physics")
-print(response)
-```
-
-## 核心组件
-
-### LLMClient
-
-通用LLM客户端，支持所有OpenAI兼容的API。
-
-**参数：**
-- `api_key`: API密钥
-- `base_url`: API基础URL
-- `model`: 模型名称
-- `temperature`: 温度参数（0-1）
-- `max_tokens`: 最大token数
-- `**kwargs`: 其他额外参数
-
-**方法：**
-- `chat(messages, **kwargs)`: 发送对话请求，返回完整响应
-- `stream_chat(messages, **kwargs)`: 流式发送对话请求
-
-### Conversation
-
-对话管理器，自动维护对话历史。
-
-**参数：**
-- `client`: LLMClient实例
-- `system_prompt`: 系统提示词（可选）
-
-**方法：**
-- `send(message, **kwargs)`: 发送消息并获取响应
-- `stream_send(message, **kwargs)`: 流式发送消息
-- `clear()`: 清空对话历史
-- `get_history()`: 获取对话历史
-- `set_system_prompt(prompt)`: 设置系统提示词
-
-### Agent
-
-AI代理，具有特定角色和个性。
-
-**参数：**
-- `client`: LLMClient实例
-- `name`: Agent名称
-- `role`: 角色描述
-- `personality`: 个性描述
-
-**方法：**
-- `respond(message, **kwargs)`: 生成响应
-- `stream_respond(message, **kwargs)`: 流式生成响应
-- `reset()`: 重置对话历史
-- `get_history()`: 获取对话历史
-
-## 使用示例
-
-### 示例1：简单对话
-
-```python
-from llm_client import LLMClient
-from conversation import Conversation
-
-client = LLMClient(
-    api_key="sk-xxx",
-    base_url="https://api.openai.com/v1",
-    model="gpt-3.5-turbo"
-)
-
-conv = Conversation(client, system_prompt="You are a helpful assistant.")
-response = conv.send("What's the weather like?")
-print(response)
-```
-
-### 示例2：多轮对话
-
-```python
-conv = Conversation(client)
-
-conv.send("My name is Alice")
-conv.send("What's my name?")  # AI会记住你的名字
-```
-
-### 示例3：创建专业Agent
-
-```python
-from agent import Agent
-
-# 创建代码助手
-coder = Agent(
-    client=client,
-    name="Coder",
-    role="You are an expert programmer.",
-    personality="Concise and technical"
-)
-
-code = coder.respond("Write a Python function to calculate fibonacci")
-print(code)
-```
-
-### 示例4：使用不同的API提供商
-
-```python
-# 使用Azure OpenAI
-client = LLMClient(
-    api_key="your-azure-key",
-    base_url="https://your-resource.openai.azure.com/openai/deployments/your-deployment",
-    model="gpt-35-turbo"
-)
-
-# 使用国内API（如智谱、通义等）
-client = LLMClient(
-    api_key="your-key",
-    base_url="https://api.provider.com/v1",
-    model="model-name"
+class LLMClient(
+    api_key: str,
+    base_url: str,
+    model: str,
+    provider: str = "openai",
+    temperature: float = 0.7,
+    max_tokens: int = 2000,
+    **kwargs
 )
 ```
 
-### 示例5：自定义参数
+### 初始化参数
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `api_key` | `str` | 是 | - | API 密钥。 |
+| `base_url` | `str` | 是 | - | API 的基础 URL (例如 `https://api.openai.com/v1` 或自定义端点)。 |
+| `model` | `str` | 是 | - | 使用的模型名称 (例如 `gpt-4`, `gemini-pro`)。 |
+| `provider` | `str` | 否 | `"openai"` | 供应商类型。可选值: `"openai"`, `"google"`。 |
+| `temperature` | `float` | 否 | `0.7` | 采样温度，控制输出的随机性。 |
+| `max_tokens` | `int` | 否 | `2000` | 生成的最大 Token 数。 |
+| `**kwargs` | `dict` | 否 | - | 其他传递给底层客户端的额外参数。 |
+
+### 核心方法
+
+#### 1. `chat(messages, **kwargs) -> str`
+
+发送对话请求并获得完整响应。
+
+*   **参数**:
+    *   `messages` (`Iterable[ChatCompletionMessageParam]`): 消息列表。
+    *   `**kwargs`: 覆盖初始化时的配置（如 `temperature`, `max_tokens`）。
+*   **返回**: `str` (模型生成的文本内容)。
+
+#### 2. `stream_chat(messages, **kwargs) -> Iterator[str]`
+
+流式发送对话请求，返回生成内容的迭代器。
+
+*   **参数**: 同 `chat`。
+*   **返回**: `Iterator[str]` (逐步产出的文本片段)。
+
+### 输入格式说明 (`messages`)
+
+`messages` 是一个字典列表，每个字典包含 `role` 和 `content`：
 
 ```python
-# 创建时设置默认参数
-client = LLMClient(
-    api_key="sk-xxx",
-    base_url="https://api.openai.com/v1",
-    model="gpt-4",
-    temperature=0.9,
-    max_tokens=4000
+messages = [
+    {"role": "system", "content": "你是一个有用的助手。"},
+    {"role": "user", "content": "你好，请介绍一下自己。"}
+]
+```
+*   **role**: 角色，通常为 `"system"`, `"user"`, `"assistant"`。
+*   **content**: 消息内容字符串。
+
+---
+
+## 2. Conversation (`conversation.py`)
+
+`Conversation` 类用于管理对话历史和上下文，它封装了 `LLMClient` 并自动维护消息列表。
+
+### 类定义
+
+```python
+class Conversation(
+    client: LLMClient,
+    system_prompt: Optional[str] = None
 )
-
-# 调用时覆盖参数
-response = conv.send("Tell me a story", temperature=1.0, max_tokens=1000)
 ```
 
-## 运行示例
+### 初始化参数
 
-```bash
-# 运行交互式聊天
-python chat.py
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `client` | `LLMClient` | 是 | - | 已初始化的 LLM 客户端实例。 |
+| `system_prompt` | `str` | 否 | `None` | 系统提示词，若提供则作为第一条消息。 |
 
-# 运行简单对话示例
-python examples/simple_chat.py
+### 核心方法
 
-# 运行Agent示例
-python examples/agent_example.py
-```
+*   **`add_message(role: str, content: str)`**: 手动添加一条消息到历史记录。
+*   **`send(user_message: str, **kwargs) -> str`**: 发送用户消息，自动保存用户提问和 AI 回复到历史，并返回 AI 回复。
+*   **`stream_send(user_message: str, **kwargs) -> Iterator[str]`**: 同上，但是以流式返回。
+*   **`clear()`**: 清空对话历史（如果初始化时有 `system_prompt`，会保留）。
+*   **`get_history() -> List[Dict]`**: 获取当前的完整对话历史。
+*   **`set_system_prompt(prompt: str)`**: 更新或设置系统提示词。
 
-## 兼容的API提供商
+---
 
-本库支持所有OpenAI兼容的API，包括但不限于：
+## 3. Agent (`agent.py`)
 
-- OpenAI
-- Azure OpenAI
-- 智谱AI (GLM)
-- 通义千问 (Qwen)
-- 文心一言 (ERNIE)
-- 讯飞星火 (Spark)
-- Moonshot AI
-- DeepSeek
-- 其他提供OpenAI兼容接口的服务
+`Agent` 类用于构建具有特定角色、个性和背景的 AI 智能体。它在 `Conversation` 的基础上增加了角色扮演的系统提示词构建逻辑。
 
-## 高级用法
-
-### 自定义系统提示词
+### 类定义
 
 ```python
-conv = Conversation(
-    client,
-    system_prompt="You are a professional translator. Translate everything to Chinese."
+class Agent(
+    client: LLMClient,
+    name: str = "Agent",
+    role: str = "",
+    personality: str = "",
+    background: str = ""
 )
 ```
 
-### 管理对话历史
+### 初始化参数
 
-```python
-# 获取历史
-history = conv.get_history()
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `client` | `LLMClient` | 是 | - | LLM 客户端实例。 |
+| `name` | `str` | 否 | `"Agent"` | 智能体的名称。 |
+| `role` | `str` | 否 | `""` | 角色设定 (例如 "一位经验丰富的医生")。 |
+| `personality` | `str` | 否 | `""` | 性格特征 (例如 "温和、耐心、严谨")。 |
+| `background` | `str` | 否 | `""` | 背景故事。 |
 
-# 清空历史
-conv.clear()
+### 工作机制
 
-# 修改系统提示词
-conv.set_system_prompt("New system prompt")
-```
+初始化时，`Agent` 会自动调用 `_build_system_prompt()` 方法，将 `role`, `personality`, `background` 组合成一个强约束的 System Prompt，要求模型：
+1.  **严禁破格**：不透露自己是 AI。
+2.  **第一人称**：始终以设定角色的身份回答。
 
-### 流式输出控制
+### 核心方法
 
-```python
-full_response = ""
-for chunk in conv.stream_send("Write a poem"):
-    full_response += chunk
-    print(chunk, end="", flush=True)
-print(f"\n\nFull response length: {len(full_response)}")
-```
+*   **`respond(message: str, **kwargs) -> str`**: 代理调用 `conversation.send`。
+*   **`stream_respond(message: str, **kwargs)`**: 代理调用 `conversation.stream_send`。
+*   **`reset()`**: 重置记忆。
+*   **`get_history()`**: 获取记忆。
 
-## 项目结构
+---
 
-```
-LLM/
-├── llm_client.py      # 核心LLM客户端
-├── conversation.py    # 对话管理
-├── agent.py          # Agent系统
-├── chat.py           # 交互式聊天界面
-├── config.yaml       # 配置文件
-├── requirements.txt  # 依赖
-├── README.md         # 使用手册
-└── examples/         # 示例代码
-    ├── simple_chat.py
-    └── agent_example.py
-```
+## 4. MultiAgentSystem (`multi_agent.py`)
 
-## 注意事项
+该模块包含 `MultiAgentSystem` 基类和 `WerewolfGame` 示例类，用于管理多个 Agent 之间的交互。
 
-1. 请妥善保管API密钥，不要提交到版本控制系统
-2. 不同的API提供商可能有不同的模型名称和参数要求
-3. 注意API调用的费用和速率限制
-4. 流式输出时需要正确处理异常
+### `MultiAgentSystem` 类
 
-## 许可证
+用于管理一组 Agent，支持群发消息和轮询对话。
 
-MIT License
+#### 核心方法
 
-## 贡献
+*   **`add_agent(agent: Agent)`**: 注册一个 Agent。
+*   **`remove_agent(name: str)`**: 移除一个 Agent。
+*   **`get_agent(name: str) -> Agent`**: 获取指定名称的 Agent。
+*   **`broadcast(message: str, exclude: List[str] = None) -> Dict[str, str]`**:
+    *   向所有 Agent (除了 `exclude` 列表中的) 发送同一条消息。
+    *   返回字典 `{agent_name: response_text}`。
+*   **`round_robin(initial_message: str, rounds: int = 1) -> List[Dict[str, str]]`**:
+    *   让 Agent 依次发言，前一个 Agent 的输出会作为下一个 Agent 的输入的一部分。
+    *   返回每一轮的对话记录列表。
+*   **`reset_all()`**: 重置所有 Agent 的记忆。
 
-欢迎提交Issue和Pull Request！
+### `WerewolfGame` 类
+
+继承自 `MultiAgentSystem`，展示了如何扩展多智能体系统来维护游戏状态。
+
+*   **额外属性**: `game_state` (包含 `phase`, `day`, `alive_players` 等)。
+*   **特定方法**: `start_game`, `night_phase`, `day_phase`, `eliminate_player`。
+
+---
+
+## 5. 命令行聊天工具 (`chat.py`)
+
+这是一个可直接运行的脚本，用于在终端与 LLM 进行交互。
+
+### 使用方法
+
+1.  确保项目根目录下存在 `config.yaml` 配置文件。
+2.  配置文件格式示例：
+    ```yaml
+    api:
+      api_key: "your-api-key"
+      base_url: "https://api.openai.com/v1"
+      model: "gpt-3.5-turbo"
+      temperature: 0.7
+      max_tokens: 2000
+    ```
+3.  运行命令：
+    ```bash
+    python chat.py
+    ```
+
+### 交互指令
+*   输入文字进行对话。
+*   输入 `clear` 清空当前对话历史。
+*   输入 `quit` 退出程序。
