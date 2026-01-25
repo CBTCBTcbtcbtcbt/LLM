@@ -1,5 +1,5 @@
 """Core LLM client module supporting OpenAI and Google Gemini APIs."""
-from typing import List, Dict, Optional, Iterator, Iterable, Union
+from typing import List, Dict, Optional, Iterator, Iterable, Union, Any
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
@@ -142,15 +142,38 @@ class _GeminiClient:
         return system_instruction, contents
 
     def chat(self, messages: Iterable[ChatCompletionMessageParam], **kwargs) -> str:
-        """Send chat request and return response."""
+        """Send chat request and return response.
+        
+        Args:
+            messages: Chat messages in OpenAI format.
+            **kwargs: Additional arguments including:
+                - schema: Optional response schema for structured output (Google SDK types.Schema).
+                - temperature: Override default temperature.
+                - max_tokens: Override default max tokens.
+        """
         system_instruction, contents = self._convert_messages(messages)
         
-        config = types.GenerateContentConfig(
-            temperature=kwargs.get('temperature', self.temperature),
-            max_output_tokens=kwargs.get('max_tokens', self.max_tokens),
-            system_instruction=system_instruction,
-            **{k: v for k, v in self.extra_params.items() if k not in kwargs}
-        )
+        # Extract schema for structured output
+        schema = kwargs.pop('schema', None)
+        
+        # Build config with optional structured output
+        config_params = {
+            "temperature": kwargs.get('temperature', self.temperature),
+            "max_output_tokens": kwargs.get('max_tokens', self.max_tokens),
+            "system_instruction": system_instruction,
+        }
+        
+        # Add structured output parameters if schema is provided
+        if schema is not None:
+            config_params["response_schema"] = schema
+            config_params["response_mime_type"] = "application/json"
+        
+        # Merge extra params
+        for k, v in self.extra_params.items():
+            if k not in kwargs and k not in config_params:
+                config_params[k] = v
+        
+        config = types.GenerateContentConfig(**config_params)
         
         response = self.client.models.generate_content(
             model=self.model,
@@ -160,15 +183,38 @@ class _GeminiClient:
         return response.text or ""
     
     def stream_chat(self, messages: Iterable[ChatCompletionMessageParam], **kwargs) -> Iterator[str]:
-        """Stream chat responses."""
+        """Stream chat responses.
+        
+        Args:
+            messages: Chat messages in OpenAI format.
+            **kwargs: Additional arguments including:
+                - schema: Optional response schema for structured output (Google SDK types.Schema).
+                - temperature: Override default temperature.
+                - max_tokens: Override default max tokens.
+        """
         system_instruction, contents = self._convert_messages(messages)
         
-        config = types.GenerateContentConfig(
-            temperature=kwargs.get('temperature', self.temperature),
-            max_output_tokens=kwargs.get('max_tokens', self.max_tokens),
-            system_instruction=system_instruction,
-            **{k: v for k, v in self.extra_params.items() if k not in kwargs}
-        )
+        # Extract schema for structured output
+        schema = kwargs.pop('schema', None)
+        
+        # Build config with optional structured output
+        config_params = {
+            "temperature": kwargs.get('temperature', self.temperature),
+            "max_output_tokens": kwargs.get('max_tokens', self.max_tokens),
+            "system_instruction": system_instruction,
+        }
+        
+        # Add structured output parameters if schema is provided
+        if schema is not None:
+            config_params["response_schema"] = schema
+            config_params["response_mime_type"] = "application/json"
+        
+        # Merge extra params
+        for k, v in self.extra_params.items():
+            if k not in kwargs and k not in config_params:
+                config_params[k] = v
+        
+        config = types.GenerateContentConfig(**config_params)
         
         stream = self.client.models.generate_content_stream(
             model=self.model,
@@ -179,6 +225,157 @@ class _GeminiClient:
         for chunk in stream:
             if chunk.text:
                 yield chunk.text
+
+    def chat_with_tools(
+        self, 
+        messages: Iterable[ChatCompletionMessageParam],
+        tools: List[Dict[str, Any]],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Send chat request with function calling tools.
+        
+        Args:
+            messages: Chat messages in OpenAI format.
+            tools: List of function declarations. Each declaration should be a dict with:
+                - name: Function name
+                - description: Function description
+                - parameters: JSON Schema object describing the function parameters
+            **kwargs: Additional arguments including:
+                - temperature: Override default temperature.
+                - max_tokens: Override default max tokens.
+        
+        Returns:
+            Dict with:
+                - text: Response text (str or None)
+                - function_call: Function call info (dict with 'name' and 'args') or None
+                - model_response: Raw model response content for continuing conversation
+                - contents: The contents sent to the model (for continuing conversation)
+        """
+        system_instruction, contents = self._convert_messages(messages)
+        
+        # Build tools configuration
+        tool_declarations = types.Tool(function_declarations=tools)
+        
+        # Build config
+        config_params = {
+            "temperature": kwargs.get('temperature', self.temperature),
+            "max_output_tokens": kwargs.get('max_tokens', self.max_tokens),
+            "system_instruction": system_instruction,
+            "tools": [tool_declarations],
+        }
+        
+        # Merge extra params
+        for k, v in self.extra_params.items():
+            if k not in kwargs and k not in config_params:
+                config_params[k] = v
+        
+        config = types.GenerateContentConfig(**config_params)
+        
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=contents,
+            config=config
+        )
+        
+        # Extract result
+        result = {
+            "text": None,
+            "function_call": None,
+            "model_response": response.candidates[0].content if response.candidates else None,
+            "contents": contents,
+        }
+        
+        # Check for function call or text in response parts
+        if response.candidates and response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'function_call') and part.function_call:
+                    result["function_call"] = {
+                        "name": part.function_call.name,
+                        "args": dict(part.function_call.args) if part.function_call.args else {}
+                    }
+                    break
+                elif hasattr(part, 'text') and part.text:
+                    result["text"] = part.text
+        
+        return result
+
+    def continue_chat_with_tool_result(
+        self,
+        contents: List[types.Content],
+        model_response: types.Content,
+        function_name: str,
+        function_result: Dict[str, Any],
+        tools: List[Dict[str, Any]],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Continue chat after function execution with the result.
+        
+        Args:
+            contents: Previous conversation contents.
+            model_response: The model's response containing the function call.
+            function_name: Name of the executed function.
+            function_result: Result from the function execution.
+            tools: List of function declarations (same as chat_with_tools).
+            **kwargs: Additional arguments.
+        
+        Returns:
+            Dict with same structure as chat_with_tools.
+        """
+        # Append model response and function result to contents
+        new_contents = list(contents)
+        new_contents.append(model_response)
+        
+        # Create function response part
+        function_response_part = types.Part.from_function_response(
+            name=function_name,
+            response={"result": function_result},
+        )
+        new_contents.append(types.Content(role="user", parts=[function_response_part]))
+        
+        # Build tools configuration
+        tool_declarations = types.Tool(function_declarations=tools)
+        
+        # Build config (no system_instruction needed as it's already in context)
+        config_params = {
+            "temperature": kwargs.get('temperature', self.temperature),
+            "max_output_tokens": kwargs.get('max_tokens', self.max_tokens),
+            "tools": [tool_declarations],
+        }
+        
+        # Merge extra params
+        for k, v in self.extra_params.items():
+            if k not in kwargs and k not in config_params:
+                config_params[k] = v
+        
+        config = types.GenerateContentConfig(**config_params)
+        
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=new_contents,
+            config=config
+        )
+        
+        # Extract result
+        result = {
+            "text": None,
+            "function_call": None,
+            "model_response": response.candidates[0].content if response.candidates else None,
+            "contents": new_contents,
+        }
+        
+        # Check for function call or text in response parts
+        if response.candidates and response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'function_call') and part.function_call:
+                    result["function_call"] = {
+                        "name": part.function_call.name,
+                        "args": dict(part.function_call.args) if part.function_call.args else {}
+                    }
+                    break
+                elif hasattr(part, 'text') and part.text:
+                    result["text"] = part.text
+        
+        return result
 
 class LLMClient:
     """Universal LLM client supporting OpenAI and Google Gemini APIs."""
@@ -226,9 +423,96 @@ class LLMClient:
             )
     
     def chat(self, messages: Iterable[ChatCompletionMessageParam], **kwargs) -> str:
-        """Send chat request and return response."""
+        """Send chat request and return response.
+        
+        Args:
+            messages: Chat messages in OpenAI format.
+            **kwargs: Additional arguments including:
+                - schema: (Google provider only) Response schema for structured output.
+                         Use google.genai.types.Schema to define the expected output format.
+                - temperature: Override default temperature.
+                - max_tokens: Override default max tokens.
+        
+        Returns:
+            Response text from the model. If schema is provided (Google only), 
+            returns JSON string that conforms to the schema.
+        """
         return self.client_impl.chat(messages, **kwargs)
     
     def stream_chat(self, messages: Iterable[ChatCompletionMessageParam], **kwargs) -> Iterator[str]:
-        """Stream chat responses."""
+        """Stream chat responses.
+        
+        Args:
+            messages: Chat messages in OpenAI format.
+            **kwargs: Additional arguments including:
+                - schema: (Google provider only) Response schema for structured output.
+                         Use google.genai.types.Schema to define the expected output format.
+                - temperature: Override default temperature.
+                - max_tokens: Override default max tokens.
+        
+        Yields:
+            Response text chunks from the model. If schema is provided (Google only),
+            the complete response will be a JSON string that conforms to the schema.
+        """
         return self.client_impl.stream_chat(messages, **kwargs)
+
+    def chat_with_tools(
+        self, 
+        messages: Iterable[ChatCompletionMessageParam],
+        tools: List[Dict[str, Any]],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Send chat request with function calling tools (Google provider only).
+        
+        Args:
+            messages: Chat messages in OpenAI format.
+            tools: List of function declarations. Each declaration should be a dict with:
+                - name: Function name
+                - description: Function description
+                - parameters: JSON Schema object describing the function parameters
+            **kwargs: Additional arguments.
+        
+        Returns:
+            Dict with:
+                - text: Response text (str or None)
+                - function_call: Function call info (dict with 'name' and 'args') or None
+                - model_response: Raw model response content for continuing conversation
+                - contents: The contents sent to the model (for continuing conversation)
+        
+        Raises:
+            NotImplementedError: If provider is not 'google'.
+        """
+        if self.provider != "google":
+            raise NotImplementedError("chat_with_tools is only supported for Google provider")
+        return self.client_impl.chat_with_tools(messages, tools, **kwargs)
+
+    def continue_chat_with_tool_result(
+        self,
+        contents: List,
+        model_response: Any,
+        function_name: str,
+        function_result: Dict[str, Any],
+        tools: List[Dict[str, Any]],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Continue chat after function execution with the result (Google provider only).
+        
+        Args:
+            contents: Previous conversation contents (from chat_with_tools response).
+            model_response: The model's response containing the function call.
+            function_name: Name of the executed function.
+            function_result: Result from the function execution.
+            tools: List of function declarations (same as chat_with_tools).
+            **kwargs: Additional arguments.
+        
+        Returns:
+            Dict with same structure as chat_with_tools.
+        
+        Raises:
+            NotImplementedError: If provider is not 'google'.
+        """
+        if self.provider != "google":
+            raise NotImplementedError("continue_chat_with_tool_result is only supported for Google provider")
+        return self.client_impl.continue_chat_with_tool_result(
+            contents, model_response, function_name, function_result, tools, **kwargs
+        )

@@ -50,15 +50,201 @@ class LLMClient(
 
 *   **参数**:
     *   `messages` (`Iterable[ChatCompletionMessageParam]`): 消息列表。
-    *   `**kwargs`: 覆盖初始化时的配置（如 `temperature`, `max_tokens`）。
-*   **返回**: `str` (模型生成的文本内容)。
+    *   `**kwargs`: 覆盖初始化时的配置（如 `temperature`, `max_tokens`, `schema`）。
+*   **返回**: `str` (模型生成的文本内容。如果使用了 `schema` 参数，返回符合 schema 的 JSON 字符串)。
 
 #### 2. `stream_chat(messages, **kwargs) -> Iterator[str]`
 
 流式发送对话请求，返回生成内容的迭代器。
 
 *   **参数**: 同 `chat`。
-*   **返回**: `Iterator[str]` (逐步产出的文本片段)。
+*   **返回**: `Iterator[str]` (逐步产出的文本片段。如果使用了 `schema` 参数，完整响应为符合 schema 的 JSON 字符串)。
+
+### 结构化输出 (Structured Output)
+
+> **注意**: 此功能仅在 `provider="google"` 时可用。
+
+结构化输出功能允许你指定模型输出的 JSON 格式，确保返回的数据符合预期的结构。这对于需要解析 LLM 输出的应用非常有用。
+
+**无需导入 Google SDK！** 使用简单的字典格式定义 schema 即可。
+
+#### 使用方法
+
+```python
+from llm_client import LLMClient
+import json
+
+# 1. 定义输出 Schema（使用字典格式）
+person_schema = {
+    "type": "OBJECT",
+    "properties": {
+        "name": {
+            "type": "STRING",
+            "description": "姓名"
+        },
+        "age": {
+            "type": "INTEGER",
+            "description": "年龄"
+        },
+        "hobbies": {
+            "type": "ARRAY",
+            "items": {"type": "STRING"},
+            "description": "爱好列表"
+        }
+    },
+    "required": ["name", "age"]
+}
+
+# 2. 创建 Google provider 客户端
+client = LLMClient(
+    api_key="your-google-api-key",
+    base_url="https://generativelanguage.googleapis.com",
+    model="gemini-2.0-flash",
+    provider="google"
+)
+
+# 3. 调用 chat 并传入 schema
+messages = [{"role": "user", "content": "介绍一下爱因斯坦"}]
+response = client.chat(messages, schema=person_schema)
+
+# 4. 解析 JSON 响应
+data = json.loads(response)
+print(data["name"])  # "Albert Einstein"
+print(data["age"])   # 76
+```
+
+#### Schema 类型
+
+支持以下数据类型（字符串格式）：
+
+| 类型 | 说明 | 示例值 |
+| :--- | :--- | :--- |
+| `"STRING"` | 字符串 | `"hello"` |
+| `"INTEGER"` | 整数 | `42` |
+| `"NUMBER"` | 浮点数 | `3.14` |
+| `"BOOLEAN"` | 布尔值 | `true` |
+| `"ARRAY"` | 数组 | `["a", "b"]` |
+| `"OBJECT"` | 对象 | `{"key": "value"}` |
+
+#### Schema 属性说明
+
+| 属性 | 说明 | 示例 |
+| :--- | :--- | :--- |
+| `type` | 数据类型 | `"STRING"`, `"OBJECT"`, `"ARRAY"` |
+| `description` | 字段描述（可选） | `"用户的姓名"` |
+| `properties` | OBJECT 类型的子字段定义 | `{"name": {"type": "STRING"}}` |
+| `items` | ARRAY 类型的元素定义 | `{"type": "STRING"}` |
+| `required` | 必填字段列表 | `["name", "age"]` |
+
+#### 高级示例：嵌套结构
+
+```python
+# 定义嵌套的 Schema
+company_schema = {
+    "type": "OBJECT",
+    "properties": {
+        "company_name": {"type": "STRING"},
+        "founded_year": {"type": "INTEGER"},
+        "headquarters": {
+            "type": "OBJECT",
+            "properties": {
+                "city": {"type": "STRING"},
+                "country": {"type": "STRING"}
+            },
+            "required": ["city", "country"]
+        },
+        "products": {
+            "type": "ARRAY",
+            "items": {"type": "STRING"}
+        }
+    },
+    "required": ["company_name", "founded_year"]
+}
+```
+
+#### 从 YAML 文件加载 Schema
+
+可以将 schema 定义在 YAML 文件中，方便管理和复用：
+
+```yaml
+# schema.yaml
+schema:
+  type: "OBJECT"
+  properties:
+    reasoning:
+      type: "STRING"
+      description: "推理过程说明"
+    action:
+      type: "ARRAY"
+      description: "动作指令列表"
+      items:
+        type: "STRING"
+        description: "单个动作描述"
+  required:
+    - "reasoning"
+    - "action"
+```
+
+```python
+import yaml
+from llm_client import LLMClient
+
+# 从 YAML 文件加载 schema
+with open("schema.yaml", "r", encoding="utf-8") as f:
+    config = yaml.safe_load(f)
+    schema = config["schema"]
+
+client = LLMClient(
+    api_key="your-api-key",
+    base_url="https://generativelanguage.googleapis.com",
+    model="gemini-2.0-flash",
+    provider="google"
+)
+
+response = client.chat(messages, schema=schema)
+```
+
+#### 流式输出
+
+结构化输出同样支持流式响应：
+
+```python
+full_response = ""
+for chunk in client.stream_chat(messages, schema=person_schema):
+    print(chunk, end="", flush=True)
+    full_response += chunk
+
+# 流式完成后解析
+data = json.loads(full_response)
+```
+
+#### 与 Conversation 类配合使用
+
+```python
+from llm_client import LLMClient
+from conversation import Conversation
+
+client = LLMClient(
+    api_key="your-api-key",
+    base_url="https://generativelanguage.googleapis.com",
+    model="gemini-2.0-flash",
+    provider="google"
+)
+
+conversation = Conversation(client, system_prompt="你是一个数据分析助手。")
+
+sentiment_schema = {
+    "type": "OBJECT",
+    "properties": {
+        "sentiment": {"type": "STRING", "description": "情感倾向"},
+        "confidence": {"type": "NUMBER", "description": "置信度 0-1"}
+    },
+    "required": ["sentiment", "confidence"]
+}
+
+# schema 参数会通过 **kwargs 传递到底层 client
+response = conversation.send("分析这段文本的情感", schema=sentiment_schema)
+```
 
 ### 输入格式说明 (`messages`)
 
