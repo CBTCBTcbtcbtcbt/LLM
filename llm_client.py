@@ -122,6 +122,30 @@ class _GeminiClient:
                     for item in content:
                         if isinstance(item, str):
                             parts.append(types.Part(text=item))
+                        elif isinstance(item, dict) and item.get("__multimodal_file__"):
+                            # Handle multimodal file dict (single or multiple)
+                            from pathlib import Path
+                            files_to_process = []
+                            if "files" in item and isinstance(item["files"], list):
+                                files_to_process = item["files"]
+                            else:
+                                files_to_process = [item]
+                                
+                            for file_info in files_to_process:
+                                f_path = file_info.get("file_path")
+                                f_mime = file_info.get("mime_type", "application/pdf")
+                                f_name = file_info.get("filename", "document")
+                                f_desc = file_info.get("description", f"Content of {f_name}")
+                                
+                                if f_path and Path(f_path).exists():
+                                    try:
+                                        f_bytes = Path(f_path).read_bytes()
+                                        # Add descriptive text part first
+                                        parts.append(types.Part(text=f_desc + ":"))
+                                        # Add file content part
+                                        parts.append(types.Part.from_bytes(data=f_bytes, mime_type=f_mime))
+                                    except Exception:
+                                        pass
                         else:
                             # Wrap supported objects (Image, File, etc.) in types.Part
                             try:
@@ -129,6 +153,30 @@ class _GeminiClient:
                             except Exception:
                                 # Fallback if direct wrapping fails, though SDK seems to support it
                                 parts.append(item)
+                elif isinstance(content, dict) and content.get("__multimodal_file__"):
+                    # Handle multimodal file dict passed directly as content
+                    from pathlib import Path
+                    files_to_process = []
+                    if "files" in content and isinstance(content["files"], list):
+                        files_to_process = content["files"]
+                    else:
+                        files_to_process = [content]
+                        
+                    for file_info in files_to_process:
+                        f_path = file_info.get("file_path")
+                        f_mime = file_info.get("mime_type", "application/pdf")
+                        f_name = file_info.get("filename", "document")
+                        f_desc = file_info.get("description", f"Content of {f_name}")
+                        
+                        if f_path and Path(f_path).exists():
+                            try:
+                                f_bytes = Path(f_path).read_bytes()
+                                # Add descriptive text part first
+                                parts.append(types.Part(text=f_desc + ":"))
+                                # Add file content part
+                                parts.append(types.Part.from_bytes(data=f_bytes, mime_type=f_mime))
+                            except Exception:
+                                pass
                 else:
                     # Fallback for other types (convert to string)
                     parts.append(types.Part(text=str(content)))
@@ -315,23 +363,79 @@ class _GeminiClient:
             contents: Previous conversation contents.
             model_response: The model's response containing the function call.
             function_name: Name of the executed function.
-            function_result: Result from the function execution.
+            function_result: Result from the function execution. Can be a regular dict
+                           or a special multimodal file marker dict with '__multimodal_file__' key.
             tools: List of function declarations (same as chat_with_tools).
             **kwargs: Additional arguments.
         
         Returns:
             Dict with same structure as chat_with_tools.
         """
+        from pathlib import Path
+        
         # Append model response and function result to contents
         new_contents = list(contents)
         new_contents.append(model_response)
         
-        # Create function response part
-        function_response_part = types.Part.from_function_response(
-            name=function_name,
-            response={"result": function_result},
-        )
-        new_contents.append(types.Content(role="user", parts=[function_response_part]))
+        # Check if function_result contains multimodal file marker
+        user_parts = []
+        
+        if isinstance(function_result, dict) and function_result.get("__multimodal_file__"):
+            # Handle multimodal file return (single or multiple)
+            files_to_process = []
+            if "files" in function_result and isinstance(function_result["files"], list):
+                files_to_process = function_result["files"]
+            else:
+                files_to_process = [function_result]
+            
+            processed_descriptions = []
+            
+            successful_files = 0
+            for file_info in files_to_process:
+                file_path = file_info.get("file_path")
+                mime_type = file_info.get("mime_type", "application/pdf")
+                filename = file_info.get("filename", "document")
+                description = file_info.get("description", f"File: {filename}")
+                
+                if file_path and Path(file_path).exists():
+                    try:
+                        # Read file bytes and create Part
+                        file_bytes = Path(file_path).read_bytes()
+                        
+                        # Interleaved strategy: Description -> File
+                        user_parts.append(types.Part(text=f"Content of {filename}:"))
+                        
+                        file_part = types.Part.from_bytes(
+                            data=file_bytes,
+                            mime_type=mime_type
+                        )
+                        user_parts.append(file_part)
+                        
+                        processed_descriptions.append(description)
+                        successful_files += 1
+                    except Exception as e:
+                        processed_descriptions.append(f"Error reading {filename}: {str(e)}")
+                else:
+                    processed_descriptions.append(f"Error: File not found at {file_path}")
+            
+            # Create function response with summary
+            result_summary = f"Processed {successful_files} files. " + "; ".join(processed_descriptions)
+            function_response_part = types.Part.from_function_response(
+                name=function_name,
+                response={"result": result_summary, "file_count": successful_files},
+            )
+            
+            # Prepend function response (it must be the first part or separate, but putting it first is safe)
+            user_parts.insert(0, function_response_part)
+        else:
+            # Regular function result (text/dict)
+            function_response_part = types.Part.from_function_response(
+                name=function_name,
+                response={"result": function_result},
+            )
+            user_parts.append(function_response_part)
+        
+        new_contents.append(types.Content(role="user", parts=user_parts))
         
         # Build tools configuration
         tool_declarations = types.Tool(function_declarations=tools)

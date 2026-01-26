@@ -8,7 +8,8 @@
 2. [Conversation (conversation.py)](#2-conversation-conversationpy)
 3. [Agent (agent.py)](#3-agent-agentpy)
 4. [MultiAgentSystem (multi_agent.py)](#4-multiagentsystem-multi_agentpy)
-5. [命令行聊天工具 (chat.py)](#5-命令行聊天工具-chatpy)
+5. [Tools 开发指南](#5-tools-开发指南)
+6. [命令行聊天工具 (chat.py)](#6-命令行聊天工具-chatpy)
 
 ---
 
@@ -333,7 +334,7 @@ class Agent(
 
 ---
 
-## 4. MultiAgentSystem (`multi_agent.py`)
+## 4. MultiAgentSystem (`multi_agent.py`)以下部分还在开发，没有实际作用
 
 该模块包含 `MultiAgentSystem` 基类和 `WerewolfGame` 示例类，用于管理多个 Agent 之间的交互。
 
@@ -363,7 +364,104 @@ class Agent(
 
 ---
 
-## 5. 命令行聊天工具 (`chat.py`)
+## 5. Tools 开发指南
+
+本框架支持开发者自定义工具（Tool），供 Agent 调用。除了返回常规文本结果外，工具还支持返回文件（如 PDF、图像等）供 LLM 进行多模态理解。
+
+### 5.1 基本工具定义
+
+工具通常包含两个部分：
+1.  **声明 (Declaration)**: 一个描述工具功能、参数的字典（JSON Schema）。
+2.  **实现 (Handler)**: 一个实际执行逻辑的 Python 函数。
+
+示例：
+```python
+# 声明
+my_tool_declaration = {
+    "name": "my_tool",
+    "description": "这是一个示例工具",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "param1": {"type": "string"}
+        }
+    }
+}
+
+# 实现
+def my_tool_handler(param1):
+    return f"收到参数: {param1}"
+
+# 注册
+agent.register_tool(my_tool_declaration, my_tool_handler)
+```
+
+### 5.2 文件传输协议 (Multimodal File Protocol)
+
+如果你的工具需要返回文件（例如读取 PDF、图片），请返回一个包含特殊标记的字典。
+
+> **注意**: 此功能目前主要适用于支持多模态输入的模型（如 Gemini）。
+
+#### 返回单个文件
+
+```python
+def read_pdf_handler(filename):
+    return {
+        "__multimodal_file__": True,
+        "file_path": "/path/to/file.pdf",
+        "mime_type": "application/pdf",  # 可选，默认为 application/pdf
+        "filename": "file.pdf",          # 可选
+        "description": "这是文件的描述"    # 可选
+    }
+```
+
+#### 返回多个文件
+
+```python
+def read_multiple_files_handler(pattern):
+    return {
+        "__multimodal_file__": True,
+        "files": [
+            {
+                "file_path": "/path/to/file1.pdf",
+                "mime_type": "application/pdf",
+                "filename": "file1.pdf"
+                "description": "这是文件1的描述"
+            },
+            },
+            {
+                "file_path": "/path/to/image.png",
+                "mime_type": "image/png",
+                "filename": "image.png"
+                "description": "这是图片的描述"
+            }
+        ]
+    }
+```
+
+框架会自动识别 `__multimodal_file__` 标记，读取指定路径的文件内容，并将其转换为 LLM 可理解的多模态数据（`Part` 对象），同时将 `function_response` 添加到对话历史中。
+
+### 5.3 在初始对话中发送文件
+
+你也可以在调用 `chat` 或 `chat_with_tools` 时，直接在 `messages` 中使用上述格式发送文件。
+
+```python
+messages = [
+    {
+        "role": "user",
+        "content": {
+            "__multimodal_file__": True,
+            "file_path": "image.jpg",
+            "mime_type": "image/jpeg"
+        }
+    }
+]
+response = client.chat(messages)
+```
+
+---
+
+## 6. 命令行聊天工具 (`chat.py`)
 
 这是一个可直接运行的脚本，用于在终端与 LLM 进行交互。
 
