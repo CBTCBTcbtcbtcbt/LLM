@@ -147,16 +147,13 @@ class _GeminiClient:
         Args:
             messages: Chat messages in OpenAI format.
             **kwargs: Additional arguments including:
-                - schema: Optional response schema for structured output (Google SDK types.Schema).
+                - schema: Optional response schema for structured output (dict format).
+                          If provided, response will be JSON; otherwise plain text.
                 - temperature: Override default temperature.
                 - max_tokens: Override default max tokens.
         """
         system_instruction, contents = self._convert_messages(messages)
 
-        # Extract structured output parameters
-        response_mime_type = kwargs.pop('response_mime_type', None)
-        response_schema = kwargs.pop('response_schema', None)
-        
         # Extract schema for structured output
         schema = kwargs.pop('schema', None)
         
@@ -192,7 +189,8 @@ class _GeminiClient:
         Args:
             messages: Chat messages in OpenAI format.
             **kwargs: Additional arguments including:
-                - schema: Optional response schema for structured output (Google SDK types.Schema).
+                - schema: Optional response schema for structured output (dict format).
+                          If provided, response will be JSON; otherwise plain text.
                 - temperature: Override default temperature.
                 - max_tokens: Override default max tokens.
         """
@@ -218,10 +216,6 @@ class _GeminiClient:
             if k not in kwargs and k not in config_params:
                 config_params[k] = v
         
-        
-        # Extract structured output parameters
-        response_mime_type = kwargs.pop('response_mime_type', None)
-        response_schema = kwargs.pop('response_schema', None)
         config = types.GenerateContentConfig(**config_params)
         stream = self.client.models.generate_content_stream(
             model=self.model,
