@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from llm_client import LLMClient
 from agent import Agent
-
+import yaml
 
 # ============================================================================
 # Step 1: Define function declarations (tool definitions)
@@ -90,6 +90,11 @@ def get_weather(location: str) -> dict:
     }
     return weather_data.get(location, {"temp": 20, "condition": "Unknown", "humidity": 50})
 
+def load_config(config_path: str = "config.yaml") -> dict:
+    """Load configuration from YAML file."""
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
 
 # ============================================================================
 # Main Demo
@@ -97,19 +102,19 @@ def get_weather(location: str) -> dict:
 
 def main():
     # Get API key from environment
-    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        print("Error: Please set GOOGLE_API_KEY or GEMINI_API_KEY environment variable")
-        return
 
-    # Create LLM client (Google provider)
+    config = load_config()
+    api_config = config['api']
+    
     client = LLMClient(
-        api_key=api_key,
-        base_url="https://generativelanguage.googleapis.com",
-        model="gemini-2.0-flash",
-        provider="google",
-        temperature=0.7,
+        api_key=api_config['api_key'],
+        base_url=api_config['base_url'],
+        model=api_config['model'],
+        temperature=api_config.get('temperature', 0.7),
+        max_tokens=api_config.get('max_tokens', 2000)
+        provider=api_config.get('provider', 'google')
     )
+
 
     # ========================================================================
     # Demo 1: Auto-execute function calls
