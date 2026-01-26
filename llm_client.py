@@ -152,6 +152,10 @@ class _GeminiClient:
                 - max_tokens: Override default max tokens.
         """
         system_instruction, contents = self._convert_messages(messages)
+
+        # Extract structured output parameters
+        response_mime_type = kwargs.pop('response_mime_type', None)
+        response_schema = kwargs.pop('response_schema', None)
         
         # Extract schema for structured output
         schema = kwargs.pop('schema', None)
@@ -214,8 +218,11 @@ class _GeminiClient:
             if k not in kwargs and k not in config_params:
                 config_params[k] = v
         
-        config = types.GenerateContentConfig(**config_params)
         
+        # Extract structured output parameters
+        response_mime_type = kwargs.pop('response_mime_type', None)
+        response_schema = kwargs.pop('response_schema', None)
+        config = types.GenerateContentConfig(**config_params)
         stream = self.client.models.generate_content_stream(
             model=self.model,
             contents=contents,

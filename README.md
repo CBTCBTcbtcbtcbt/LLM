@@ -246,6 +246,128 @@ sentiment_schema = {
 response = conversation.send("分析这段文本的情感", schema=sentiment_schema)
 ```
 
+### 结构化输出 (Structured Output)
+
+当使用 Google Gemini 作为供应商时 (`provider="google"`)，可以通过 `response_mime_type` 和 `response_schema` 参数来强制模型输出结构化的 JSON 数据。
+
+#### 示例 1: 仅指定 JSON 格式
+
+```python
+response = client.chat(
+    messages,
+    response_mime_type="application/json"
+)
+```
+
+#### 示例 2: 指定详细的 JSON Schema
+
+你可以定义一个标准的 JSON Schema 对象来约束输出字段。
+
+```python
+# 定义 Schema
+schema = {
+    "type": "OBJECT",
+    "properties": {
+        "reasoning": {
+            "type": "STRING",
+            "description": "思考过程"
+        },
+        "action": {
+            "type": "OBJECT",
+            "properties": {
+                "direction": {
+                    "type": "STRING",
+                    "enum": ["前", "后", "左", "右", "停"]
+                },
+                "speed": {
+                    "type": "STRING",
+                    "enum": ["low", "medium", "high"]
+                }
+            },
+            "required": ["direction", "speed"]
+        }
+    },
+    "required": ["reasoning", "action"]
+}
+
+# 调用
+response = client.chat(
+    messages,
+    response_mime_type="application/json",
+    response_schema=schema
+)
+```
+
+**支持的 Schema 类型**:
+*   `STRING`: 字符串
+*   `NUMBER`: 数字 (float)
+*   `INTEGER`: 整数
+*   `BOOLEAN`: 布尔值
+*   `ARRAY`: 数组 (需指定 `items`)
+*   `OBJECT`: 对象 (需指定 `properties`)
+
+#### 详细说明
+
+1.  **MIME 类型 (`response_mime_type`)**:
+    *   `"application/json"`: 最常用的格式，返回标准的 JSON 字符串。
+    *   `"text/plain"`: 返回普通文本（默认）。
+    *   `"text/x.enum"`: 返回枚举值（通常配合简单的 Schema 使用）。
+
+2.  **Schema 格式规则 (`response_schema`)**:
+    Schema 是一个标准的 Python 字典，遵循 OpenAPI 3.0 数据类型定义的子集。主要字段如下：
+
+    *   `type` (必填): 数据类型，支持：
+        *   `STRING`: 文本字符串。
+        *   `NUMBER`: 浮点数。
+        *   `INTEGER`: 整数。
+        *   `BOOLEAN`: 布尔值 (`true`/`false`)。
+        *   `ARRAY`: 列表/数组。
+        *   `OBJECT`: 字典/对象。
+    
+    *   `description` (可选): 字段描述，用于指导模型理解字段含义（非常重要，相当于 Prompt 的一部分）。
+    
+    *   `nullable` (可选): 布尔值，是否允许为 `null`。
+    
+    *   `enum` (可选): 字符串列表，仅用于 `STRING` 类型，限制输出值为列表中的一项。
+    
+    *   `format` (可选): 字符串，指定格式（如 `"float"`, `"double"`, `"int32"`, `"int64"`）。
+
+    *   `properties` (当 `type` 为 `OBJECT` 时必填): 字典，定义对象的属性（字段名 -> Schema）。
+
+    *   `required` (当 `type` 为 `OBJECT` 时可选): 字符串列表，指定必须包含的属性名。
+
+    *   `items` (当 `type` 为 `ARRAY` 时必填): 字典，定义数组元素的 Schema。
+
+#### 复杂 Schema 示例
+
+```python
+complex_schema = {
+    "type": "OBJECT",
+    "properties": {
+        "product_name": {"type": "STRING", "description": "产品名称"},
+        "tags": {
+            "type": "ARRAY",
+            "description": "产品标签列表",
+            "items": {"type": "STRING"}
+        },
+        "specs": {
+            "type": "OBJECT",
+            "description": "技术参数",
+            "properties": {
+                "weight": {"type": "NUMBER", "description": "重量(kg)"},
+                "dimensions": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "width": {"type": "INTEGER"},
+                        "height": {"type": "INTEGER"}
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
 ### 输入格式说明 (`messages`)
 
 `messages` 是一个字典列表，每个字典包含 `role` 和 `content`：
